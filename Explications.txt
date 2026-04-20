@@ -1,0 +1,108 @@
+Partie 1 — SDFs & opérations
+
+Qu'est-ce qu'une SDF ?
+Une SDF est une fonction f(p) qui retourne la distance signée entre un point p et la surface d'une forme. Négatif = dedans, zéro = sur la surface, positif = dehors.
+
+Les primitives à implémenter
+Chaque primitive est une fonction Python sdf_xxx(p, params).
+
+Liste des primitives :
+def sdf_sphere(p, radius):
+    return np.linalg.norm(p) - radius
+
+def sdf_box(p, half_extents):
+    q = np.abs(p) - half_extents
+    return np.linalg.norm(np.maximum(q, 0)) + min(max(q[0], q[1], q[2]), 0)
+
+def sdf_torus(p, R, r):
+    q = np.array([np.linalg.norm(p[[0,2]]) - R, p[1]])
+    return np.linalg.norm(q) - r
+
+Les opérations booléennes : On combine deux SDFs a et b
+Liste des opérations :
+    - union
+    - soustraction
+    - intersection
+    - smooth union : arrondit la jonction entre deux formes
+
+L'arbre CSG (Constructive Solid Geometry) :
+Pour combiner plusieurs primitives, on les représente sous forme d'arbre. Chaque nœud est soit une primitive, soit une opération entre deux enfants.
+Pour évaluer la SDF en un point p, on descend récursivement dans l'arbre. En Python, chaque nœud peut être une classe avec une méthode evaluate(p).
+
+
+Partie 2 — Marching Cubes
+
+Le principe
+On divise l'espace en une grille 3D de petits cubes. Pour chaque cube, on évalue la SDF aux 8 sommets. 
+Selon le signe de chaque sommet (intérieur ou extérieur), on sait quelle configuration de triangles placer à l'intérieur du cube.
+
+Les étapes d'implémentation :
+Étape 1 — La grille. On crée un tableau numpy 3D et on évalue la SDF en chaque point :
+import numpy as np
+
+resolution = 64
+x = np.linspace(-2, 2, resolution)
+grid = np.array(np.meshgrid(x, x, x, indexing='ij'))
+# Evaluer la SDF en chaque point
+values = np.vectorize(lambda i,j,k: sdf_scene(grid[:,i,j,k]))(
+    *np.indices((resolution, resolution, resolution))
+)
+
+Étape 2 — La lookup table. 
+C'est le cœur de l'algorithme. 
+Pour chaque cube, on calcule un indice entre 0 et 255 en regardant le signe des 8 sommets. 
+Cet indice donne directement quelles arêtes sont traversées par la surface. 
+La table est disponible en ligne (ex: paul.bourke.net : http://paulbourke.net/geometry/polygonise/).
+
+Étape 3 — L'interpolation. 
+Pour chaque arête traversée, on place le vertex non pas au milieu mais à la position exacte où f(p) = 0 par interpolation linéaire :
+def interpolate_vertex(p1, p2, val1, val2):
+    t = val1 / (val1 - val2)   # où exactement la surface croise l'arête
+    return p1 + t * (p2 - p1)
+
+Étape 4 — Export vers Blender. 
+Une fois les triangles générés, on crée un objet mesh Blender :
+import bpy
+mesh = bpy.data.meshes.new("SDF_Mesh")
+mesh.from_pydata(vertices, [], faces)
+mesh.update()
+obj = bpy.data.objects.new("SDF_Object", mesh)
+bpy.context.collection.objects.link(obj)
+
+
+Partie 3 — Intégration & post-traitement
+
+Calcul des normales
+Les normales sont essentielles pour un rendu propre. On les calcule par le gradient numérique de la SDF — pas besoin de les calculer géométriquement :
+def sdf_normal(p, eps=0.001):
+    dx = sdf(p + [eps,0,0]) - sdf(p - [eps,0,0])
+    dy = sdf(p + [0,eps,0]) - sdf(p - [0,eps,0])
+    dz = sdf(p + [0,0,eps]) - sdf(p - [0,0,eps])
+    n = np.array([dx, dy, dz])
+    return n / np.linalg.norm(n)
+
+Lissage du maillage
+Le Marching Cubes produit souvent un maillage un peu "escalier". 
+On peut l'améliorer avec un lissage de Laplace : chaque sommet se déplace vers la moyenne de ses voisins, plusieurs fois de suite :
+def laplacian_smooth(verts, faces, iterations=3, factor=0.5):
+    for _ in range(iterations):
+        new_verts = verts.copy()
+        for i, v in enumerate(verts):
+            neighbors = get_neighbors(i, faces)
+            new_verts[i] = v + factor * (np.mean(verts[neighbors], axis=0) - v)
+        verts = new_verts
+    return verts
+
+Interface Blender (panel)
+On crée un panel dans les propriétés Blender pour paramétrer les primitives et lancer la reconstruction :
+class SDF_PT_Panel(bpy.types.Panel):
+    bl_label = "SDF Editor"
+    bl_space_type = 'VIEW_3D'
+    bl_region_type = 'UI'
+
+    def draw(self, context):
+        layout = self.layout
+        layout.prop(context.scene, "sdf_resolution")
+        layout.operator("sdf.generate_mesh")
+
+

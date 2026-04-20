@@ -1,0 +1,7 @@
+Date oral ou rendu : 13/05/2026
+
+Sujet : https://git.unistra.fr/enseignements/geo_num/-/blob/main/Projet2026.md?ref_type=heads
+
+Outils : https://github.com/fogleman/sdf/tree/main/sdf
+         https://github.com/TLabAltoh/mesh_from_sdf
+

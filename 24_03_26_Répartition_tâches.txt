@@ -1,0 +1,33 @@
+Architecture globale : Scène (CSG Tree) → Évaluation SDF → Marching Cubes → Maillage Blender
+
+
+Découpage en 3 parties :
+
+Mathieu -> Primitives & SDF
+    - Implémenter les SDFs de base (sphère, boîte, cylindre, tore)
+    - Implémenter les opérations (union, intersection, soustraction, smooth union)
+    - Représentation en arbre CSG
+
+Elouan -> Marching Cubes
+    - Grille volumétrique 3D
+    - Algorithme Marching Cubes (lookup table des 256 cas)
+    - Export du maillage vers Blender
+
+Ahmet -> Intégration & UI Blender
+    - Interface utilisateur dans Blender (panneaux, paramètres des primitives)
+    - Calcul des normales, lissage du maillage
+    - Visualisation des primitives par des gizmos simples
+
+
+Outils :
+    - Git unistra avec branch
+    - Python avec Blender
+
+Choix :
+    - POO
+    - Cube, Sphere, Torus
+    - Créer ses ongets dans Blender
+    - Blender peut être notre Interface
+
+Spécialisation :
+    - Gestion des textures -> choisir un aspect en particulier
